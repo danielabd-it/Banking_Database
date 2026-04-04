@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Savings Accounts — DARJZ Bank{% endblock %}
+{% block content %}
+
+<div class="ph">
+  <div>
+    <h1>Savings Accounts</h1>
+    <p>Manage all savings account records — 3% interest rate</p>
+  </div>
+  <a href="/savings/new" class="btn btn-p">＋ Open Savings Account</a>
+</div>
+
+{% if msg %}
+<div class="alert {% if '✗' in msg %}alert-err{% else %}alert-ok{% endif %}">{{ msg }}</div>
+{% endif %}
+
+<div class="card">
+  <div class="clabel">All Savings Accounts</div>
+  {% if accounts %}
+  <div class="tw">
+    <table>
+      <thead>
+        <tr>
+          <th>Account ID (12 digits)</th><th>Account Holder</th><th>SIN</th><th>Balance</th><th>Interest Rate</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for a in accounts %}
+      <tr>
+        <td><span class="badge badge-s">{{ a.AccountID }}</span></td>
+        <td><strong>{{ a.FullName }}</strong></td>
+        <td class="mono">{{ a.SIN }}</td>
+        <td><strong style="color:var(--navy)">${{ "%.2f"|format(a.Balance) }}</strong></td>
+        <td>
+          <span style="background:#fff8e0;color:#7a5f00;padding:3px 10px;border-radius:4px;font-size:12px;font-weight:600;border:1px solid #f5d060">
+            {{ a.InterestRate }}%
+          </span>
+        </td>
+        <td>
+          <div class="acts">
+            <a href="/savings/edit/{{ a.AccountID }}" class="btn btn-g btn-sm">✎ Edit</a>
+            <a href="/savings/delete/{{ a.AccountID }}" class="btn btn-d btn-sm"
+               onclick="return confirm('Delete savings account {{ a.AccountID }}?')">✕ Delete</a>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p style="text-align:right;margin-top:12px;font-size:12px;color:var(--muted)">{{ accounts|length }} account(s)</p>
+  {% else %}
+  <div class="empty"><div class="empty-i">💰</div>No savings accounts yet.</div>
+  {% endif %}
+</div>
+
+{% endblock %}
