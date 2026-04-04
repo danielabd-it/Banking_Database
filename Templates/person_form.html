@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{% if person %}Edit Person{% else %}Register Person{% endif %} — DARJZ Bank{% endblock %}
+{% block content %}
+
+<div class="ph">
+  <div>
+    <h1>{% if person %}Edit Client{% else %}Register New Client{% endif %}</h1>
+    <p>{% if person %}Update personal information for SIN {{ person.SIN }}{% else %}Add a new person to the system{% endif %}</p>
+  </div>
+  <a href="/persons" class="btn btn-g">← Back</a>
+</div>
+
+{% if msg %}
+<div class="alert {% if '✗' in msg %}alert-err{% else %}alert-ok{% endif %}">{{ msg }}</div>
+{% endif %}
+
+<div class="card">
+  <div class="clabel">{% if person %}Client Details — {{ person.FullName }}{% else %}Personal Information{% endif %}</div>
+  <form method="POST">
+    <div class="fgrid">
+      {% if not person %}
+      <div class="fg">
+        <label>Social Insurance Number (9 digits)</label>
+        <input type="text" name="sin" maxlength="9" minlength="9" placeholder="e.g. 123456789" required>
+      </div>
+      {% endif %}
+      <div class="fg">
+        <label>Full Name</label>
+        <input type="text" name="name" value="{{ person.FullName if person else '' }}" placeholder="e.g. Jane Smith" required>
+      </div>
+      <div class="fg">
+        <label>Date of Birth</label>
+        <input type="date" name="dob" value="{{ person.DateOfBirth if person else '' }}" required>
+      </div>
+      <div class="fg">
+        <label>Phone Number</label>
+        <input type="text" name="phone" value="{{ person.PhoneNumber if person else '' }}" placeholder="e.g. 416-555-0101">
+      </div>
+      <div class="fg" style="grid-column:1/-1">
+        <label>Address</label>
+        <input type="text" name="address" value="{{ person.Address if person else '' }}" placeholder="e.g. 123 Main St, Toronto ON">
+      </div>
+    </div>
+    <div class="brow">
+      <button type="submit" class="btn btn-p">
+        {% if person %}✓ Save Changes{% else %}＋ Register Client{% endif %}
+      </button>
+      <a href="/persons" class="btn btn-g">Cancel</a>
+      {% if person %}
+      <a href="/persons/delete/{{ person.SIN }}" class="btn btn-d"
+         onclick="return confirm('Permanently delete {{ person.FullName }}?')" style="margin-left:auto">
+        ✕ Delete Client
+      </a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+{% endblock %}
