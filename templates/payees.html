@@ -1,15 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Payees — DARJZ Bank{% endblock %}
-{% block content %}
 
-<div class="ph">
-  <div>
-    <h1>Payees</h1>
-    <p>Manage registered payees for bill payments</p>
+{% block hero %}
+<div class="page-strip">
+  <div class="page-strip-inner">
+    <div><h1>Payees</h1><p>Manage registered payees for bill payments</p></div>
+    <a href="/payees/new" class="btn btn-navy">＋ Add Payee</a>
   </div>
-  <a href="/payees/new" class="btn btn-p">＋ Add Payee</a>
 </div>
+{% endblock %}
 
+{% block content %}
 {% if msg %}
 <div class="alert {% if '✗' in msg %}alert-err{% else %}alert-ok{% endif %}">{{ msg }}</div>
 {% endif %}
@@ -17,40 +18,27 @@
 <div class="card">
   <div class="clabel">All Registered Payees</div>
   {% if payees %}
-  <div class="tw">
-    <table>
-      <thead>
-        <tr><th>#</th><th>Account Holder</th><th>Account</th><th>Payee Name</th><th>Phone Number</th><th>Email</th><th>Actions</th></tr>
-      </thead>
-      <tbody>
-      {% for py in payees %}
-      <tr>
-        <td class="mono">#{{ py.PayeeID }}</td>
-        <td><strong>{{ py.FullName }}</strong></td>
-        <td>
-          <span class="badge {% if py.AccountType=='chequing' %}badge-c{% else %}badge-s{% endif %}">
-            {{ py.AccountID }}
-          </span>
-        </td>
-        <td><strong>{{ py.PayeeName }}</strong></td>
-        <td class="mono">{{ py.PayeeNumber or '—' }}</td>
-        <td class="mono">{{ py.PayeeEmail or '—' }}</td>
-        <td>
-          <div class="acts">
-            <a href="/payees/edit/{{ py.PayeeID }}" class="btn btn-g btn-sm">✎ Edit</a>
-            <a href="/payees/delete/{{ py.PayeeID }}" class="btn btn-d btn-sm"
-               onclick="return confirm('Delete payee {{ py.PayeeName }}?')">✕ Delete</a>
-          </div>
-        </td>
-      </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  <div class="tw"><table>
+    <thead><tr><th>#</th><th>Account Holder</th><th>Account</th><th>Payee Name</th><th>Phone Number</th><th>Email</th><th>Actions</th></tr></thead>
+    <tbody>
+    {% for py in payees %}
+    <tr>
+      <td class="mono">#{{ py.PayeeID }}</td>
+      <td><strong>{{ py.FullName }}</strong></td>
+      <td><span class="badge {% if py.AccountType=='chequing' %}badge-c{% else %}badge-s{% endif %}">{{ py.AccountID }}</span></td>
+      <td><strong>{{ py.PayeeName }}</strong></td>
+      <td class="mono">{{ py.PayeeNumber or '—' }}</td>
+      <td class="mono">{{ py.PayeeEmail or '—' }}</td>
+      <td><div class="acts">
+        <a href="/payees/edit/{{ py.PayeeID }}" class="btn btn-g btn-sm">✎ Edit</a>
+        <a href="/payees/delete/{{ py.PayeeID }}" class="btn btn-d btn-sm"
+           onclick="return confirm('Delete payee {{ py.PayeeName }}?')">✕ Delete</a>
+      </div></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
   <p style="text-align:right;margin-top:12px;font-size:12px;color:var(--muted)">{{ payees|length }} payee(s) registered</p>
-  {% else %}
-  <div class="empty"><div class="empty-i">📋</div>No payees registered yet.</div>
-  {% endif %}
+  {% else %}<div class="empty"><div class="empty-i">📋</div>No payees registered yet.</div>{% endif %}
 </div>
-
 {% endblock %}

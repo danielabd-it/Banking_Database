@@ -1,21 +1,25 @@
 {% extends "base.html" %}
-{% block title %}{% if person %}Edit Person{% else %}Register Person{% endif %} — DARJZ Bank{% endblock %}
-{% block content %}
+{% block title %}{% if person %}Edit Client{% else %}Register Person{% endif %} — DARJZ Bank{% endblock %}
 
-<div class="ph">
-  <div>
-    <h1>{% if person %}Edit Client{% else %}Register New Client{% endif %}</h1>
-    <p>{% if person %}Update personal information for SIN {{ person.SIN }}{% else %}Add a new person to the system{% endif %}</p>
+{% block hero %}
+<div class="page-strip">
+  <div class="page-strip-inner">
+    <div>
+      <h1>{% if person %}Edit Client{% else %}Register New Client{% endif %}</h1>
+      <p>{% if person %}Update personal information for {{ person.FullName }}{% else %}Add a new person to the banking system{% endif %}</p>
+    </div>
+    <a href="/persons" class="btn btn-navy">← Back to Persons</a>
   </div>
-  <a href="/persons" class="btn btn-g">← Back</a>
 </div>
+{% endblock %}
 
+{% block content %}
 {% if msg %}
 <div class="alert {% if '✗' in msg %}alert-err{% else %}alert-ok{% endif %}">{{ msg }}</div>
 {% endif %}
 
 <div class="card">
-  <div class="clabel">{% if person %}Client Details — {{ person.FullName }}{% else %}Personal Information{% endif %}</div>
+  <div class="clabel">{% if person %}Client Record — {{ person.SIN }}{% else %}Personal Information{% endif %}</div>
   <form method="POST">
     <div class="fgrid">
       {% if not person %}
@@ -42,18 +46,13 @@
       </div>
     </div>
     <div class="brow">
-      <button type="submit" class="btn btn-p">
-        {% if person %}✓ Save Changes{% else %}＋ Register Client{% endif %}
-      </button>
+      <button type="submit" class="btn btn-p">{% if person %}✓ Save Changes{% else %}＋ Register Client{% endif %}</button>
       <a href="/persons" class="btn btn-g">Cancel</a>
       {% if person %}
-      <a href="/persons/delete/{{ person.SIN }}" class="btn btn-d"
-         onclick="return confirm('Permanently delete {{ person.FullName }}?')" style="margin-left:auto">
-        ✕ Delete Client
-      </a>
+      <a href="/persons/delete/{{ person.SIN }}" class="btn btn-d" style="margin-left:auto"
+         onclick="return confirm('Permanently delete {{ person.FullName }} and all linked accounts?')">✕ Delete Client</a>
       {% endif %}
     </div>
   </form>
 </div>
-
 {% endblock %}

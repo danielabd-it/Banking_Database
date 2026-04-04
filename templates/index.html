@@ -1,28 +1,69 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — DARJZ Bank{% endblock %}
-{% block content %}
+{% block title %}DARJZ Bank — Home{% endblock %}
 
-<div class="ph">
-  <div>
-    <h1>Welcome to DARJZ Bank</h1>
-    <p>Account overview and management portal</p>
+{% block hero %}
+<!-- HERO BANNER -->
+<div class="hero">
+  <div class="hero-overlay"></div>
+  <div class="hero-content">
+    <div class="hero-tag">Welcome to DARJZ Bank</div>
+    <h2>Banking Built<br>Around You</h2>
+    <p>Manage your accounts, transfer funds, and pay bills — all in one secure portal.</p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <a href="/persons/new" class="btn btn-navy">Open an Account</a>
+      <a href="/deposits"    class="btn btn-g" style="border-color:rgba(255,255,255,.6);color:#fff">Make a Deposit</a>
+    </div>
+  </div>
+  <div class="hero-dots">
+    <div class="hero-dot active"></div>
+    <div class="hero-dot"></div>
+    <div class="hero-dot"></div>
   </div>
 </div>
 
-<!-- QUICK ACTIONS -->
-<div class="qgrid" style="margin-bottom:28px">
-  <a href="/persons/new"  class="qcard gold"><div class="qcard-icon">👤</div>Register Person</a>
-  <a href="/chequing/new" class="qcard"><div class="qcard-icon">🏧</div>Open Chequing</a>
-  <a href="/savings/new"  class="qcard"><div class="qcard-icon">💰</div>Open Savings</a>
-  <a href="/deposits"     class="qcard"><div class="qcard-icon">↓</div>Make Deposit</a>
-  <a href="/transfers"    class="qcard"><div class="qcard-icon">⇄</div>Transfer Funds</a>
-  <a href="/paybills"     class="qcard"><div class="qcard-icon">📄</div>Pay a Bill</a>
+<!-- PRODUCTS STRIP -->
+<div class="products-strip">
+  <div class="products-title">Financial Products That Fit Your Lifestyle</div>
+  <div class="products-grid">
+    <a href="/chequing/new" class="product-card">
+      <div class="product-icon">🏧</div>
+      <div class="product-name">Chequing</div>
+      <div class="product-desc">Everyday banking with no hidden fees</div>
+    </a>
+    <a href="/savings/new" class="product-card">
+      <div class="product-icon">💰</div>
+      <div class="product-name">Savings</div>
+      <div class="product-desc">Grow your money at 3% interest</div>
+    </a>
+    <a href="/transfers" class="product-card">
+      <div class="product-icon">⇄</div>
+      <div class="product-name">Transfers</div>
+      <div class="product-desc">Move funds between accounts instantly</div>
+    </a>
+    <a href="/paybills" class="product-card">
+      <div class="product-icon">📄</div>
+      <div class="product-name">Pay Bills</div>
+      <div class="product-desc">Pay your bills securely online</div>
+    </a>
+    <a href="/payees" class="product-card">
+      <div class="product-icon">📋</div>
+      <div class="product-name">Payees</div>
+      <div class="product-desc">Manage your registered payees</div>
+    </a>
+    <a href="/deposits" class="product-card">
+      <div class="product-icon">↓</div>
+      <div class="product-name">Deposits</div>
+      <div class="product-desc">Deposit funds quickly and securely</div>
+    </a>
+  </div>
 </div>
+{% endblock %}
 
-<!-- JOIN SUMMARY TABLE -->
+{% block content %}
+
+<!-- ACCOUNT SUMMARY -->
 <div class="card">
-  <div class="clabel">Account Summary — All Clients</div>
-
+  <div class="clabel">Client Account Overview</div>
   {% if summary %}
   <div class="tw">
     <table>
@@ -35,7 +76,7 @@
           <th>Chequing Balance</th>
           <th>Savings Account</th>
           <th>Savings Balance</th>
-          <th>Interest Rate</th>
+          <th>Interest</th>
         </tr>
       </thead>
       <tbody>
@@ -44,27 +85,11 @@
         <td class="mono">{{ r.SIN }}</td>
         <td><strong>{{ r.FullName }}</strong></td>
         <td class="mono">{{ r.PhoneNumber or '—' }}</td>
-        <td>
-          {% if r.ChequingID %}
-            <span class="badge badge-c">{{ r.ChequingID }}</span>
-          {% else %}—{% endif %}
-        </td>
-        <td>
-          {% if r.ChequingBal is not none %}
-            <strong style="color:var(--navy)">${{ "%.2f"|format(r.ChequingBal) }}</strong>
-          {% else %}—{% endif %}
-        </td>
-        <td>
-          {% if r.SavingsID %}
-            <span class="badge badge-s">{{ r.SavingsID }}</span>
-          {% else %}—{% endif %}
-        </td>
-        <td>
-          {% if r.SavingsBal is not none %}
-            <strong style="color:var(--navy)">${{ "%.2f"|format(r.SavingsBal) }}</strong>
-          {% else %}—{% endif %}
-        </td>
-        <td>{% if r.InterestRate %}{{ r.InterestRate }}%{% else %}—{% endif %}</td>
+        <td>{% if r.ChequingID %}<span class="badge badge-c">{{ r.ChequingID }}</span>{% else %}<span style="color:#bbb">—</span>{% endif %}</td>
+        <td>{% if r.ChequingBal is not none %}<strong>${{ "%.2f"|format(r.ChequingBal) }}</strong>{% else %}<span style="color:#bbb">—</span>{% endif %}</td>
+        <td>{% if r.SavingsID %}<span class="badge badge-s">{{ r.SavingsID }}</span>{% else %}<span style="color:#bbb">—</span>{% endif %}</td>
+        <td>{% if r.SavingsBal is not none %}<strong>${{ "%.2f"|format(r.SavingsBal) }}</strong>{% else %}<span style="color:#bbb">—</span>{% endif %}</td>
+        <td>{% if r.InterestRate %}<span style="color:var(--green);font-weight:700">{{ r.InterestRate }}%</span>{% else %}<span style="color:#bbb">—</span>{% endif %}</td>
       </tr>
       {% endfor %}
       </tbody>
@@ -73,7 +98,7 @@
   {% else %}
   <div class="empty">
     <div class="empty-i">🏦</div>
-    No clients yet. <a href="/persons/new" style="color:var(--navy2);font-weight:600">Register a person</a> to get started.
+    No clients yet. <a href="/persons/new" style="color:var(--teal);font-weight:700">Register a person</a> to get started.
   </div>
   {% endif %}
 </div>

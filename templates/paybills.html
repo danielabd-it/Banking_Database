@@ -1,14 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Pay Bills — DARJZ Bank{% endblock %}
-{% block content %}
 
-<div class="ph">
-  <div>
-    <h1>Pay Bills</h1>
-    <p>Make bill payments from chequing or savings accounts</p>
+{% block hero %}
+<div class="page-strip">
+  <div class="page-strip-inner">
+    <div><h1>Pay Bills</h1><p>Make secure bill payments from your accounts</p></div>
   </div>
 </div>
+{% endblock %}
 
+{% block content %}
 {% if msg %}
 <div class="alert {% if '✗' in msg %}alert-err{% else %}alert-ok{% endif %}">{{ msg }}</div>
 {% endif %}
@@ -17,71 +18,47 @@
   <div class="clabel">New Bill Payment</div>
   <form method="POST" action="/paybills">
     <div class="fgrid">
-      <div class="fg">
-        <label>Account Holder (SIN)</label>
+      <div class="fg"><label>Account Holder (SIN)</label>
         <select name="sin" required>
           <option value="" disabled selected>— Select person —</option>
           {% for p in persons %}<option value="{{ p.SIN }}">{{ p.SIN }} — {{ p.FullName }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="fg">
-        <label>Pay From Account</label>
+        </select></div>
+      <div class="fg"><label>Pay From Account</label>
         <select name="account_id" required>
           <option value="" disabled selected>— Select account —</option>
           {% for a in accounts %}<option value="{{ a.AccountID }}">[{{ a.Type }}] {{ a.AccountID }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="fg">
-        <label>Account Type</label>
-        <select name="account_type" required>
-          <option value="chequing">Chequing</option>
-          <option value="savings">Savings</option>
-        </select>
-      </div>
-      <div class="fg">
-        <label>Payee Name</label>
-        <input type="text" name="payee_name" placeholder="e.g. Hydro One" required>
-      </div>
-      <div class="fg">
-        <label>Payment Amount ($)</label>
-        <input type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" required>
-      </div>
+        </select></div>
+      <div class="fg"><label>Account Type</label>
+        <select name="account_type" required><option value="chequing">Chequing</option><option value="savings">Savings</option></select></div>
+      <div class="fg"><label>Payee Name</label>
+        <input type="text" name="payee_name" placeholder="e.g. Hydro One" required></div>
+      <div class="fg"><label>Payment Amount ($)</label>
+        <input type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" required></div>
     </div>
-    <div class="brow">
-      <button type="submit" class="btn btn-p">📄 Confirm Payment</button>
-    </div>
+    <div class="brow"><button type="submit" class="btn btn-p">📄 Confirm Payment</button></div>
   </form>
 </div>
 
 <div class="card">
   <div class="clabel">Bill Payment History</div>
   {% if paybills %}
-  <div class="tw">
-    <table>
-      <thead>
-        <tr><th>#</th><th>Account Holder</th><th>Account</th><th>Payee</th><th>Amount</th><th>Date & Time</th><th></th></tr>
-      </thead>
-      <tbody>
-      {% for pb in paybills %}
-      <tr>
-        <td class="mono">#{{ pb.PayBillID }}</td>
-        <td><strong>{{ pb.FullName }}</strong></td>
-        <td><span class="badge badge-c">{{ pb.AccountID }}</span></td>
-        <td>{{ pb.PayeeName }}</td>
-        <td><strong style="color:var(--red)">-${{ "%.2f"|format(pb.Amount) }}</strong></td>
-        <td class="mono">{{ pb.CreatedAt }}</td>
-        <td>
-          <a href="/paybills/delete/{{ pb.PayBillID }}" class="btn btn-d btn-sm"
-             onclick="return confirm('Delete this bill payment record?')">✕</a>
-        </td>
-      </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <div class="empty"><div class="empty-i">📄</div>No bill payments recorded yet.</div>
-  {% endif %}
+  <div class="tw"><table>
+    <thead><tr><th>#</th><th>Account Holder</th><th>Account</th><th>Payee</th><th>Amount</th><th>Date &amp; Time</th><th></th></tr></thead>
+    <tbody>
+    {% for pb in paybills %}
+    <tr>
+      <td class="mono">#{{ pb.PayBillID }}</td>
+      <td><strong>{{ pb.FullName }}</strong></td>
+      <td><span class="badge badge-c">{{ pb.AccountID }}</span></td>
+      <td>{{ pb.PayeeName }}</td>
+      <td><strong style="color:var(--red)">-${{ "%.2f"|format(pb.Amount) }}</strong></td>
+      <td class="mono">{{ pb.CreatedAt }}</td>
+      <td><a href="/paybills/delete/{{ pb.PayBillID }}" class="btn btn-d btn-sm"
+             onclick="return confirm('Delete this bill payment?')">✕</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<div class="empty"><div class="empty-i">📄</div>No bill payments recorded yet.</div>{% endif %}
 </div>
-
 {% endblock %}

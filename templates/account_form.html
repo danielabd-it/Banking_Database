@@ -1,15 +1,19 @@
 {% extends "base.html" %}
 {% block title %}{% if account %}Edit{% else %}Open{% endif %} {{ account_type|capitalize }} Account — DARJZ Bank{% endblock %}
-{% block content %}
 
-<div class="ph">
-  <div>
-    <h1>{% if account %}Edit Account{% else %}Open {{ account_type|capitalize }} Account{% endif %}</h1>
-    <p>{% if account %}Update PIN or balance for account {{ account.AccountID }}{% else %}Create a new {{ account_type }} account{% endif %}</p>
+{% block hero %}
+<div class="page-strip">
+  <div class="page-strip-inner">
+    <div>
+      <h1>{% if account %}Edit Account{% else %}Open {{ account_type|capitalize }} Account{% endif %}</h1>
+      <p>{% if account %}Update PIN or balance for account {{ account.AccountID }}{% else %}Create a new {{ account_type }} account{% endif %}</p>
+    </div>
+    <a href="/{{ account_type }}" class="btn btn-navy">← Back</a>
   </div>
-  <a href="/{{ account_type }}" class="btn btn-g">← Back</a>
 </div>
+{% endblock %}
 
+{% block content %}
 {% if msg %}
 <div class="alert {% if '✗' in msg %}alert-err{% else %}alert-ok{% endif %}">{{ msg }}</div>
 {% endif %}
@@ -46,17 +50,14 @@
       {% endif %}
     </div>
     {% if account_type == 'savings' and not account %}
-    <p style="margin-top:14px;font-size:12px;color:var(--muted);background:var(--surface2);padding:10px 14px;border-radius:6px;border-left:3px solid var(--gold)">
+    <p style="margin-top:14px;font-size:13px;color:var(--muted);background:var(--teal3);padding:10px 14px;border-radius:3px;border-left:3px solid var(--teal)">
       Interest rate is fixed at <strong>3.00%</strong> for all savings accounts.
     </p>
     {% endif %}
     <div class="brow">
-      <button type="submit" class="btn btn-p">
-        {% if account %}✓ Save Changes{% else %}＋ Open Account{% endif %}
-      </button>
+      <button type="submit" class="btn btn-p">{% if account %}✓ Save Changes{% else %}＋ Open Account{% endif %}</button>
       <a href="/{{ account_type }}" class="btn btn-g">Cancel</a>
     </div>
   </form>
 </div>
-
 {% endblock %}
