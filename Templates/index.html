@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — DARJZ Bank{% endblock %}
+{% block content %}
+
+<div class="ph">
+  <div>
+    <h1>Welcome to DARJZ Bank</h1>
+    <p>Account overview and management portal</p>
+  </div>
+</div>
+
+<!-- QUICK ACTIONS -->
+<div class="qgrid" style="margin-bottom:28px">
+  <a href="/persons/new"  class="qcard gold"><div class="qcard-icon">👤</div>Register Person</a>
+  <a href="/chequing/new" class="qcard"><div class="qcard-icon">🏧</div>Open Chequing</a>
+  <a href="/savings/new"  class="qcard"><div class="qcard-icon">💰</div>Open Savings</a>
+  <a href="/deposits"     class="qcard"><div class="qcard-icon">↓</div>Make Deposit</a>
+  <a href="/transfers"    class="qcard"><div class="qcard-icon">⇄</div>Transfer Funds</a>
+  <a href="/paybills"     class="qcard"><div class="qcard-icon">📄</div>Pay a Bill</a>
+</div>
+
+<!-- JOIN SUMMARY TABLE -->
+<div class="card">
+  <div class="clabel">Account Summary — All Clients</div>
+
+  {% if summary %}
+  <div class="tw">
+    <table>
+      <thead>
+        <tr>
+          <th>SIN</th>
+          <th>Full Name</th>
+          <th>Phone</th>
+          <th>Chequing Account</th>
+          <th>Chequing Balance</th>
+          <th>Savings Account</th>
+          <th>Savings Balance</th>
+          <th>Interest Rate</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in summary %}
+      <tr>
+        <td class="mono">{{ r.SIN }}</td>
+        <td><strong>{{ r.FullName }}</strong></td>
+        <td class="mono">{{ r.PhoneNumber or '—' }}</td>
+        <td>
+          {% if r.ChequingID %}
+            <span class="badge badge-c">{{ r.ChequingID }}</span>
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if r.ChequingBal is not none %}
+            <strong style="color:var(--navy)">${{ "%.2f"|format(r.ChequingBal) }}</strong>
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if r.SavingsID %}
+            <span class="badge badge-s">{{ r.SavingsID }}</span>
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if r.SavingsBal is not none %}
+            <strong style="color:var(--navy)">${{ "%.2f"|format(r.SavingsBal) }}</strong>
+          {% else %}—{% endif %}
+        </td>
+        <td>{% if r.InterestRate %}{{ r.InterestRate }}%{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">
+    <div class="empty-i">🏦</div>
+    No clients yet. <a href="/persons/new" style="color:var(--navy2);font-weight:600">Register a person</a> to get started.
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}
