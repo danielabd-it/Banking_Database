@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Close Account — DARJZ Bank{% endblock %}
+{% block content %}
+
+<div class="ph">
+  <div>
+    <h1>Close Account</h1>
+    <p>Permanently close a chequing or savings account</p>
+  </div>
+</div>
+
+{% if msg %}
+<div class="alert {% if '✗' in msg %}alert-err{% else %}alert-ok{% endif %}">{{ msg }}</div>
+{% endif %}
+
+<div class="card" style="border-top:3px solid var(--red)">
+  <div class="clabel" style="color:var(--red)">Close an Account</div>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:20px;padding:12px 16px;background:#fdf2f1;border-radius:6px;border-left:3px solid var(--red)">
+    ⚠ This action is permanent. The account will be deleted and the closure will be logged.
+  </p>
+  <form method="POST" action="/close" onsubmit="return confirm('Permanently close this account? This cannot be undone.')">
+    <div class="fgrid">
+      <div class="fg">
+        <label>Account Holder (SIN)</label>
+        <select name="sin" required>
+          <option value="" disabled selected>— Select person —</option>
+          {% for p in persons %}<option value="{{ p.SIN }}">{{ p.SIN }} — {{ p.FullName }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="fg">
+        <label>Account to Close</label>
+        <select name="account_id" required>
+          <option value="" disabled selected>— Select account —</option>
+          {% for a in accounts %}<option value="{{ a.AccountID }}">[{{ a.Type }}] {{ a.AccountID }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="fg">
+        <label>Account Type</label>
+        <select name="account_type" required>
+          <option value="chequing">Chequing</option>
+          <option value="savings">Savings</option>
+        </select>
+      </div>
+    </div>
+    <div class="brow">
+      <button type="submit" class="btn btn-d">✕ Close Account</button>
+      <a href="/" class="btn btn-g">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <div class="clabel">Closed Account Log</div>
+  {% if closed %}
+  <div class="tw">
+    <table>
+      <thead>
+        <tr><th>#</th><th>Account Holder</th><th>SIN</th><th>Account Closed</th><th>Type</th><th>Closed At</th></tr>
+      </thead>
+      <tbody>
+      {% for c in closed %}
+      <tr>
+        <td class="mono">#{{ c.CloseID }}</td>
+        <td><strong>{{ c.FullName }}</strong></td>
+        <td class="mono">{{ c.SIN }}</td>
+        <td class="mono">
+          <span style="text-decoration:line-through;color:var(--muted)">{{ c.AccountID }}</span>
+        </td>
+        <td>{{ c.AccountType }}</td>
+        <td class="mono">{{ c.ClosedAt }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty"><div class="empty-i">🔒</div>No accounts have been closed yet.</div>
+  {% endif %}
+</div>
+
+{% endblock %}
