@@ -1,14 +1,14 @@
 from flask import Flask, render_template, request, redirect, url_for
 import psycopg2
 import psycopg2.extras
-import credentials
+import os
 
 app = Flask(__name__, template_folder="templates")
 
 # ── Database ──────────────────────────────────────────────────
 class Database:
     def __init__(self):
-        self.con = psycopg2.connect(credentials.DB_URL)
+        self.con = psycopg2.connect(os.environ.get("DB_URL"))
         self.cur = self.con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     def close(self):
