@@ -1,18 +1,19 @@
 from flask import Flask, render_template, request, redirect, url_for
 import pymysql
-import credentials
+import os
 
 app = Flask(__name__, template_folder="templates")
 
 
 # ── Database ──────────────────────────────────────────────────
 class Database:
+
     def __init__(self):
         self.con = pymysql.connect(
-            host=credentials.DB_HOST,
-            user=credentials.DB_USER,
-            password=credentials.DB_PWD,
-            db=credentials.DB_NAME,
+            host=os.environ.get("DB_HOST"),
+            user=os.environ.get("DB_USER"),
+            password=os.environ.get("DB_PWD"),
+            db=os.environ.get("DB_NAME"),
             cursorclass=pymysql.cursors.DictCursor,
         )
         self.cur = self.con.cursor()
