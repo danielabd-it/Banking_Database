@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS person (
     address     VARCHAR(200)
 );
 
--- ── ACCOUNT (supertype) ──────────────────────────────────────
+-- ── ACCOUNT ──────────────────────────────────────
 CREATE TABLE IF NOT EXISTS account (
     sin CHAR(9) PRIMARY KEY,
     FOREIGN KEY (sin) REFERENCES person(sin) ON DELETE CASCADE
