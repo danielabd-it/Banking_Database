@@ -1,15 +1,228 @@
 from flask import Flask, render_template, request, redirect, url_for
-import psycopg2
-import psycopg2.extras
+import sqlite3
 import os
 
 app = Flask(__name__, template_folder="templates")
 
-# ── Database ──────────────────────────────────────────────────
+# ── Database path ─────────────────────────────────────────────
+# The .db file lives next to app.py. On PythonAnywhere or Railway
+# this file persists across restarts; on Render free tier it resets
+# on each deploy (data is lost, but the schema re-seeds itself).
+DB_PATH = os.path.join(os.path.dirname(__file__), "bank.db")
+
+
+# ── Schema + seed (runs once on startup) ─────────────────────
+def init_db():
+    con = sqlite3.connect(DB_PATH)
+    cur = con.cursor()
+
+    # Enable foreign-key enforcement (off by default in SQLite)
+    cur.execute("PRAGMA foreign_keys = ON")
+
+    cur.executescript("""
+    -- ── PERSON ───────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS Person (
+        SIN         TEXT PRIMARY KEY,
+        FullName    TEXT NOT NULL,
+        DateOfBirth TEXT NOT NULL,
+        PhoneNumber TEXT,
+        Address     TEXT
+    );
+
+    -- ── ACCOUNT ──────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS Account (
+        SIN TEXT PRIMARY KEY,
+        FOREIGN KEY (SIN) REFERENCES Person(SIN) ON DELETE CASCADE
+    );
+
+    -- ── CHEQUING ─────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS Chequing (
+        AccountID TEXT    PRIMARY KEY,
+        Pin       TEXT    NOT NULL,
+        SIN       TEXT    NOT NULL,
+        Balance   REAL    NOT NULL DEFAULT 0.00,
+        FOREIGN KEY (SIN) REFERENCES Account(SIN) ON DELETE CASCADE
+    );
+
+    -- ── SAVINGS ──────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS Savings (
+        AccountID    TEXT PRIMARY KEY,
+        Pin          TEXT NOT NULL,
+        InterestRate REAL NOT NULL DEFAULT 3.00,
+        SIN          TEXT NOT NULL,
+        Balance      REAL NOT NULL DEFAULT 0.00,
+        FOREIGN KEY (SIN) REFERENCES Account(SIN) ON DELETE CASCADE
+    );
+
+    -- ── DEPOSIT ──────────────────────────────────────────────
+    -- SQLite uses INTEGER PRIMARY KEY for auto-increment
+    CREATE TABLE IF NOT EXISTS Deposit (
+        DepositID   INTEGER PRIMARY KEY AUTOINCREMENT,
+        Amount      REAL    NOT NULL,
+        SIN         TEXT    NOT NULL,
+        AccountID   TEXT    NOT NULL,
+        AccountType TEXT    NOT NULL CHECK(AccountType IN ('chequing','savings')),
+        CreatedAt   TEXT    DEFAULT (datetime('now')),
+        FOREIGN KEY (SIN) REFERENCES Account(SIN)
+    );
+
+    -- ── TRANSFER ─────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS Transfer (
+        TransferID      INTEGER PRIMARY KEY AUTOINCREMENT,
+        Amount          REAL NOT NULL,
+        SIN             TEXT NOT NULL,
+        FromAccountID   TEXT NOT NULL,
+        FromAccountType TEXT NOT NULL CHECK(FromAccountType IN ('chequing','savings')),
+        ToAccountID     TEXT NOT NULL,
+        ToAccountType   TEXT NOT NULL CHECK(ToAccountType IN ('chequing','savings')),
+        CreatedAt       TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (SIN) REFERENCES Account(SIN)
+    );
+
+    -- ── PAYBILLS ─────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS PayBills (
+        PayBillID   INTEGER PRIMARY KEY AUTOINCREMENT,
+        Amount      REAL NOT NULL,
+        SIN         TEXT NOT NULL,
+        AccountID   TEXT NOT NULL,
+        AccountType TEXT NOT NULL CHECK(AccountType IN ('chequing','savings')),
+        PayeeName   TEXT,
+        CreatedAt   TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (SIN) REFERENCES Account(SIN)
+    );
+
+    -- ── CLOSEACCOUNT ─────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS CloseAccount (
+        CloseID     INTEGER PRIMARY KEY AUTOINCREMENT,
+        SIN         TEXT NOT NULL,
+        AccountID   TEXT NOT NULL,
+        AccountType TEXT NOT NULL CHECK(AccountType IN ('chequing','savings')),
+        ClosedAt    TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (SIN) REFERENCES Account(SIN)
+    );
+
+    -- ── PAYEE ────────────────────────────────────────────────
+    CREATE TABLE IF NOT EXISTS Payee (
+        PayeeID     INTEGER PRIMARY KEY AUTOINCREMENT,
+        SIN         TEXT NOT NULL,
+        AccountID   TEXT NOT NULL,
+        AccountType TEXT NOT NULL CHECK(AccountType IN ('chequing','savings')),
+        PayeeName   TEXT NOT NULL,
+        PayeeNumber TEXT,
+        PayeeEmail  TEXT,
+        FOREIGN KEY (SIN) REFERENCES Account(SIN)
+    );
+    """)
+
+    # ── Seed only when tables are empty ──────────────────────
+    if cur.execute("SELECT COUNT(*) FROM Person").fetchone()[0] == 0:
+        cur.executescript("""
+        INSERT INTO Person VALUES
+          ('123456789','Alice Johnson',  '1990-04-15','416-555-0101','10 Maple Ave, Toronto ON'),
+          ('987654321','Bob Martinez',   '1985-11-22','647-555-0202','55 Oak St, Mississauga ON'),
+          ('111222333','Carol White',    '2000-07-08','905-555-0303','88 Pine Rd, Brampton ON'),
+          ('444555666','David Chen',     '1978-03-30','416-555-0404','22 Birch Blvd, Toronto ON'),
+          ('777888999','Emma Patel',     '1995-09-14','647-555-0505','301 Queen St W, Toronto ON'),
+          ('222333444','Frank Okafor',   '1982-06-25','905-555-0606','14 Cedar Lane, Oakville ON'),
+          ('555666777','Grace Kim',      '1998-12-01','416-555-0707','9 Elm Dr, North York ON'),
+          ('888999000','Henry Tremblay', '1970-08-17','514-555-0808','77 Rue St-Denis, Montreal QC'),
+          ('333444555','Isabella Rossi', '1993-02-28','604-555-0909','200 Granville St, Vancouver BC'),
+          ('666777888','James Nguyen',   '1988-11-05','780-555-1010','45 Jasper Ave, Edmonton AB');
+
+        INSERT INTO Account VALUES
+          ('123456789'),('987654321'),('111222333'),('444555666'),('777888999'),
+          ('222333444'),('555666777'),('888999000'),('333444555'),('666777888');
+
+        INSERT INTO Chequing VALUES
+          ('100000000001','1234','123456789', 2500.00),
+          ('100000000002','5678','987654321', 1800.50),
+          ('100000000003','2222','444555666', 4750.25),
+          ('100000000004','3333','777888999',  950.00),
+          ('100000000005','4444','222333444', 6200.75),
+          ('100000000006','5555','555666777', 3100.00),
+          ('100000000007','6666','888999000',11400.90),
+          ('100000000008','7777','333444555', 2200.40),
+          ('100000000009','8888','666777888', 7800.60);
+
+        INSERT INTO Savings VALUES
+          ('200000000001','4321',3.00,'123456789',10000.00),
+          ('200000000002','8765',3.00,'111222333', 5400.75),
+          ('200000000003','1111',3.00,'444555666',22000.00),
+          ('200000000004','2222',3.00,'777888999', 1250.50),
+          ('200000000005','3333',3.00,'222333444', 8900.00),
+          ('200000000006','4444',3.00,'555666777', 3350.25),
+          ('200000000007','5555',3.00,'888999000',45000.00),
+          ('200000000008','6666',3.00,'333444555', 6780.00),
+          ('200000000009','7777',3.00,'666777888',15200.75);
+
+        INSERT INTO Deposit(Amount,SIN,AccountID,AccountType) VALUES
+          (1000.00,'123456789','100000000001','chequing'),
+          ( 500.00,'987654321','100000000002','chequing'),
+          (2500.00,'444555666','200000000003','savings'),
+          ( 750.00,'777888999','100000000004','chequing'),
+          (3000.00,'222333444','200000000005','savings'),
+          ( 200.00,'555666777','100000000006','chequing'),
+          (5000.00,'888999000','200000000007','savings'),
+          ( 400.00,'333444555','100000000008','chequing'),
+          (1200.00,'666777888','200000000009','savings');
+
+        INSERT INTO Transfer(Amount,SIN,FromAccountID,FromAccountType,ToAccountID,ToAccountType) VALUES
+          ( 300.00,'123456789','100000000001','chequing','200000000001','savings'),
+          ( 150.00,'444555666','200000000003','savings', '100000000003','chequing'),
+          (1000.00,'888999000','200000000007','savings', '100000000007','chequing'),
+          ( 250.00,'222333444','100000000005','chequing','200000000005','savings');
+
+        INSERT INTO PayBills(Amount,SIN,AccountID,AccountType,PayeeName) VALUES
+          ( 120.50,'123456789','100000000001','chequing','Hydro One'),
+          (  85.00,'987654321','100000000002','chequing','Rogers Cable'),
+          ( 200.00,'444555666','100000000003','chequing','Bell Canada'),
+          (  65.00,'777888999','100000000004','chequing','Enbridge Gas'),
+          ( 310.00,'222333444','200000000005','savings', 'Toronto Water'),
+          (  99.99,'555666777','100000000006','chequing','Netflix'),
+          ( 450.00,'888999000','100000000007','chequing','Property Tax'),
+          (  55.00,'333444555','100000000008','chequing','Spotify'),
+          ( 175.00,'666777888','200000000009','savings', 'Cogeco Internet');
+
+        INSERT INTO Payee(SIN,AccountID,AccountType,PayeeName,PayeeNumber,PayeeEmail) VALUES
+          ('123456789','100000000001','chequing','Hydro One',      '800-123-4567','billing@hydroone.ca'),
+          ('987654321','100000000002','chequing','Rogers Cable',   '888-764-3771','pay@rogers.com'),
+          ('444555666','100000000003','chequing','Bell Canada',    '800-667-2355','billing@bell.ca'),
+          ('777888999','100000000004','chequing','Enbridge Gas',   '877-362-7434','service@enbridge.com'),
+          ('222333444','200000000005','savings', 'Toronto Water',  '416-338-8888','water@toronto.ca'),
+          ('555666777','100000000006','chequing','Netflix',        '800-585-7265','support@netflix.com'),
+          ('888999000','100000000007','chequing','Property Tax',   '416-397-5311','tax@toronto.ca'),
+          ('333444555','100000000008','chequing','Spotify',        '800-123-9999','billing@spotify.com'),
+          ('666777888','200000000009','savings', 'Cogeco Internet','855-701-4881','billing@cogeco.ca');
+        """)
+
+    con.commit()
+    con.close()
+
+
+# ── Database helper ───────────────────────────────────────────
+def get_db():
+    """Return a connection with row_factory so rows behave like dicts."""
+    con = sqlite3.connect(DB_PATH)
+    con.row_factory = sqlite3.Row          # rows accessible as row["ColumnName"]
+    con.execute("PRAGMA foreign_keys = ON")
+    return con
+
+
+# ── Row → dict conversion (so Jinja templates work identically) ──
+def rows(cur):
+    return [dict(r) for r in cur.fetchall()]
+
+def row(cur):
+    r = cur.fetchone()
+    return dict(r) if r else None
+
+
+# ── Database class (mirrors original API exactly) ─────────────
 class Database:
+
     def __init__(self):
-        self.con = psycopg2.connect(os.environ.get("DB_URL"))
-        self.cur = self.con.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        self.con = get_db()
+        self.cur = self.con.cursor()
 
     def close(self):
         self.con.close()
@@ -21,28 +234,24 @@ class Database:
     # ── PERSON ──────────────────────────────────────────────
     def get_all_persons(self):
         self.cur.execute("""
-            SELECT sin AS "SIN", fullname AS "FullName",
-                   dateofbirth AS "DateOfBirth", phonenumber AS "PhoneNumber",
-                   address AS "Address"
-            FROM person ORDER BY fullname
+            SELECT SIN, FullName, DateOfBirth, PhoneNumber, Address
+            FROM Person ORDER BY FullName
         """)
-        r = self.cur.fetchall(); self.close(); return r
+        r = rows(self.cur); self.close(); return r
 
     def get_person(self, sin):
         self.cur.execute("""
-            SELECT sin AS "SIN", fullname AS "FullName",
-                   dateofbirth AS "DateOfBirth", phonenumber AS "PhoneNumber",
-                   address AS "Address"
-            FROM person WHERE sin=%s
+            SELECT SIN, FullName, DateOfBirth, PhoneNumber, Address
+            FROM Person WHERE SIN=?
         """, (sin,))
-        r = self.cur.fetchone(); self.close(); return r
+        r = row(self.cur); self.close(); return r
 
     def insert_person(self, sin, name, dob, phone, address):
         try:
             self.cur.execute(
-                "INSERT INTO person (sin,fullname,dateofbirth,phonenumber,address) VALUES (%s,%s,%s,%s,%s)",
+                "INSERT INTO Person(SIN,FullName,DateOfBirth,PhoneNumber,Address) VALUES(?,?,?,?,?)",
                 (sin, name, dob, phone, address))
-            self.cur.execute("INSERT INTO account (sin) VALUES (%s)", (sin,))
+            self.cur.execute("INSERT INTO Account(SIN) VALUES(?)", (sin,))
             self.commit_close()
             return "✓ Person registered successfully."
         except Exception as e:
@@ -51,7 +260,7 @@ class Database:
     def update_person(self, sin, name, dob, phone, address):
         try:
             self.cur.execute(
-                "UPDATE person SET fullname=%s,dateofbirth=%s,phonenumber=%s,address=%s WHERE sin=%s",
+                "UPDATE Person SET FullName=?,DateOfBirth=?,PhoneNumber=?,Address=? WHERE SIN=?",
                 (name, dob, phone, address, sin))
             self.commit_close(); return "✓ Person updated."
         except Exception as e:
@@ -59,7 +268,7 @@ class Database:
 
     def delete_person(self, sin):
         try:
-            self.cur.execute("DELETE FROM person WHERE sin=%s", (sin,))
+            self.cur.execute("DELETE FROM Person WHERE SIN=?", (sin,))
             self.commit_close(); return "✓ Person and linked accounts deleted."
         except Exception as e:
             self.close(); return f"✗ Error: {e}"
@@ -67,27 +276,22 @@ class Database:
     # ── CHEQUING ────────────────────────────────────────────
     def get_all_chequing(self):
         self.cur.execute("""
-            SELECT c.accountid AS "AccountID", c.pin AS "Pin",
-                   c.sin AS "SIN", c.balance AS "Balance",
-                   p.fullname AS "FullName"
-            FROM chequing c
-            INNER JOIN person p ON c.sin = p.sin
-            ORDER BY c.accountid
+            SELECT c.AccountID, c.Pin, c.SIN, c.Balance, p.FullName
+            FROM Chequing c INNER JOIN Person p ON c.SIN=p.SIN
+            ORDER BY c.AccountID
         """)
-        r = self.cur.fetchall(); self.close(); return r
+        r = rows(self.cur); self.close(); return r
 
     def get_chequing(self, aid):
         self.cur.execute("""
-            SELECT accountid AS "AccountID", pin AS "Pin",
-                   sin AS "SIN", balance AS "Balance"
-            FROM chequing WHERE accountid=%s
+            SELECT AccountID, Pin, SIN, Balance FROM Chequing WHERE AccountID=?
         """, (aid,))
-        r = self.cur.fetchone(); self.close(); return r
+        r = row(self.cur); self.close(); return r
 
     def insert_chequing(self, account_id, pin, sin):
         try:
             self.cur.execute(
-                "INSERT INTO chequing (accountid,pin,sin,balance) VALUES (%s,%s,%s,0.00)",
+                "INSERT INTO Chequing(AccountID,Pin,SIN,Balance) VALUES(?,?,?,0.00)",
                 (account_id, pin, sin))
             self.commit_close(); return "✓ Chequing account created."
         except Exception as e:
@@ -96,7 +300,7 @@ class Database:
     def update_chequing(self, aid, pin, balance):
         try:
             self.cur.execute(
-                "UPDATE chequing SET pin=%s, balance=%s WHERE accountid=%s",
+                "UPDATE Chequing SET Pin=?,Balance=? WHERE AccountID=?",
                 (pin, balance, aid))
             self.commit_close(); return "✓ Chequing account updated."
         except Exception as e:
@@ -104,7 +308,7 @@ class Database:
 
     def delete_chequing(self, aid):
         try:
-            self.cur.execute("DELETE FROM chequing WHERE accountid=%s", (aid,))
+            self.cur.execute("DELETE FROM Chequing WHERE AccountID=?", (aid,))
             self.commit_close(); return "✓ Chequing account deleted."
         except Exception as e:
             self.close(); return f"✗ Error: {e}"
@@ -112,29 +316,23 @@ class Database:
     # ── SAVINGS ─────────────────────────────────────────────
     def get_all_savings(self):
         self.cur.execute("""
-            SELECT s.accountid AS "AccountID", s.pin AS "Pin",
-                   s.sin AS "SIN", s.balance AS "Balance",
-                   s.interestrate AS "InterestRate",
-                   p.fullname AS "FullName"
-            FROM savings s
-            INNER JOIN person p ON s.sin = p.sin
-            ORDER BY s.accountid
+            SELECT s.AccountID, s.Pin, s.SIN, s.Balance, s.InterestRate, p.FullName
+            FROM Savings s INNER JOIN Person p ON s.SIN=p.SIN
+            ORDER BY s.AccountID
         """)
-        r = self.cur.fetchall(); self.close(); return r
+        r = rows(self.cur); self.close(); return r
 
     def get_savings(self, aid):
         self.cur.execute("""
-            SELECT accountid AS "AccountID", pin AS "Pin",
-                   sin AS "SIN", balance AS "Balance",
-                   interestrate AS "InterestRate"
-            FROM savings WHERE accountid=%s
+            SELECT AccountID, Pin, SIN, Balance, InterestRate
+            FROM Savings WHERE AccountID=?
         """, (aid,))
-        r = self.cur.fetchone(); self.close(); return r
+        r = row(self.cur); self.close(); return r
 
     def insert_savings(self, account_id, pin, sin):
         try:
             self.cur.execute(
-                "INSERT INTO savings (accountid,pin,interestrate,sin,balance) VALUES (%s,%s,3.00,%s,0.00)",
+                "INSERT INTO Savings(AccountID,Pin,InterestRate,SIN,Balance) VALUES(?,?,3.00,?,0.00)",
                 (account_id, pin, sin))
             self.commit_close(); return "✓ Savings account created."
         except Exception as e:
@@ -143,7 +341,7 @@ class Database:
     def update_savings(self, aid, pin, balance):
         try:
             self.cur.execute(
-                "UPDATE savings SET pin=%s, balance=%s WHERE accountid=%s",
+                "UPDATE Savings SET Pin=?,Balance=? WHERE AccountID=?",
                 (pin, balance, aid))
             self.commit_close(); return "✓ Savings account updated."
         except Exception as e:
@@ -151,7 +349,7 @@ class Database:
 
     def delete_savings(self, aid):
         try:
-            self.cur.execute("DELETE FROM savings WHERE accountid=%s", (aid,))
+            self.cur.execute("DELETE FROM Savings WHERE AccountID=?", (aid,))
             self.commit_close(); return "✓ Savings account deleted."
         except Exception as e:
             self.close(); return f"✗ Error: {e}"
@@ -159,32 +357,27 @@ class Database:
     # ── DEPOSIT ─────────────────────────────────────────────
     def get_all_deposits(self):
         self.cur.execute("""
-            SELECT d.depositid AS "DepositID", d.amount AS "Amount",
-                   d.sin AS "SIN", d.accountid AS "AccountID",
-                   d.accounttype AS "AccountType", d.createdat AS "CreatedAt",
-                   p.fullname AS "FullName"
-            FROM deposit d
-            INNER JOIN person p ON d.sin = p.sin
-            ORDER BY d.createdat DESC
+            SELECT d.DepositID, d.Amount, d.SIN, d.AccountID,
+                   d.AccountType, d.CreatedAt, p.FullName
+            FROM Deposit d INNER JOIN Person p ON d.SIN=p.SIN
+            ORDER BY d.CreatedAt DESC
         """)
-        r = self.cur.fetchall(); self.close(); return r
+        r = rows(self.cur); self.close(); return r
 
     def insert_deposit(self, amount, sin, account_id, account_type):
         try:
             self.cur.execute(
-                "INSERT INTO deposit (amount,sin,accountid,accounttype) VALUES (%s,%s,%s,%s)",
+                "INSERT INTO Deposit(Amount,SIN,AccountID,AccountType) VALUES(?,?,?,?)",
                 (amount, sin, account_id, account_type))
-            if account_type == "chequing":
-                self.cur.execute("UPDATE chequing SET balance=balance+%s WHERE accountid=%s", (amount, account_id))
-            else:
-                self.cur.execute("UPDATE savings SET balance=balance+%s WHERE accountid=%s", (amount, account_id))
+            tbl = "Chequing" if account_type == "chequing" else "Savings"
+            self.cur.execute(f"UPDATE {tbl} SET Balance=Balance+? WHERE AccountID=?", (amount, account_id))
             self.commit_close(); return "✓ Deposit recorded."
         except Exception as e:
             self.close(); return f"✗ Error: {e}"
 
     def delete_deposit(self, dep_id):
         try:
-            self.cur.execute("DELETE FROM deposit WHERE depositid=%s", (dep_id,))
+            self.cur.execute("DELETE FROM Deposit WHERE DepositID=?", (dep_id,))
             self.commit_close(); return "✓ Deposit record deleted."
         except Exception as e:
             self.close(); return f"✗ Error: {e}"
@@ -192,38 +385,33 @@ class Database:
     # ── TRANSFER ────────────────────────────────────────────
     def get_all_transfers(self):
         self.cur.execute("""
-            SELECT t.transferid AS "TransferID", t.amount AS "Amount",
-                   t.sin AS "SIN",
-                   t.fromaccountid   AS "FromAccountID",
-                   t.fromaccounttype AS "FromAccountType",
-                   t.toaccountid     AS "ToAccountID",
-                   t.toaccounttype   AS "ToAccountType",
-                   t.createdat AS "CreatedAt",
-                   p.fullname AS "FullName"
-            FROM transfer t
-            INNER JOIN person p ON t.sin = p.sin
-            ORDER BY t.createdat DESC
+            SELECT t.TransferID, t.Amount, t.SIN,
+                   t.FromAccountID, t.FromAccountType,
+                   t.ToAccountID,   t.ToAccountType,
+                   t.CreatedAt, p.FullName
+            FROM Transfer t INNER JOIN Person p ON t.SIN=p.SIN
+            ORDER BY t.CreatedAt DESC
         """)
-        r = self.cur.fetchall(); self.close(); return r
+        r = rows(self.cur); self.close(); return r
 
     def insert_transfer(self, amount, sin, from_id, from_type, to_id, to_type):
         try:
             self.cur.execute(
-                """INSERT INTO transfer
-                   (amount,sin,fromaccountid,fromaccounttype,toaccountid,toaccounttype)
-                   VALUES (%s,%s,%s,%s,%s,%s)""",
+                """INSERT INTO Transfer
+                   (Amount,SIN,FromAccountID,FromAccountType,ToAccountID,ToAccountType)
+                   VALUES(?,?,?,?,?,?)""",
                 (amount, sin, from_id, from_type, to_id, to_type))
-            tbl_from = "chequing" if from_type == "chequing" else "savings"
-            tbl_to   = "chequing" if to_type   == "chequing" else "savings"
-            self.cur.execute(f"UPDATE {tbl_from} SET balance=balance-%s WHERE accountid=%s", (amount, from_id))
-            self.cur.execute(f"UPDATE {tbl_to}   SET balance=balance+%s WHERE accountid=%s", (amount, to_id))
+            tbl_from = "Chequing" if from_type == "chequing" else "Savings"
+            tbl_to   = "Chequing" if to_type   == "chequing" else "Savings"
+            self.cur.execute(f"UPDATE {tbl_from} SET Balance=Balance-? WHERE AccountID=?", (amount, from_id))
+            self.cur.execute(f"UPDATE {tbl_to}   SET Balance=Balance+? WHERE AccountID=?", (amount, to_id))
             self.commit_close(); return "✓ Transfer completed."
         except Exception as e:
             self.close(); return f"✗ Error: {e}"
 
     def delete_transfer(self, tid):
         try:
-            self.cur.execute("DELETE FROM transfer WHERE transferid=%s", (tid,))
+            self.cur.execute("DELETE FROM Transfer WHERE TransferID=?", (tid,))
             self.commit_close(); return "✓ Transfer record deleted."
         except Exception as e:
             self.close(); return f"✗ Error: {e}"
@@ -231,31 +419,27 @@ class Database:
     # ── PAY BILLS ───────────────────────────────────────────
     def get_all_paybills(self):
         self.cur.execute("""
-            SELECT pb.paybillid AS "PayBillID", pb.amount AS "Amount",
-                   pb.sin AS "SIN", pb.accountid AS "AccountID",
-                   pb.accounttype AS "AccountType", pb.payeename AS "PayeeName",
-                   pb.createdat AS "CreatedAt",
-                   p.fullname AS "FullName"
-            FROM paybills pb
-            INNER JOIN person p ON pb.sin = p.sin
-            ORDER BY pb.createdat DESC
+            SELECT pb.PayBillID, pb.Amount, pb.SIN, pb.AccountID,
+                   pb.AccountType, pb.PayeeName, pb.CreatedAt, p.FullName
+            FROM PayBills pb INNER JOIN Person p ON pb.SIN=p.SIN
+            ORDER BY pb.CreatedAt DESC
         """)
-        r = self.cur.fetchall(); self.close(); return r
+        r = rows(self.cur); self.close(); return r
 
     def insert_paybill(self, amount, sin, account_id, account_type, payee_name):
         try:
             self.cur.execute(
-                "INSERT INTO paybills (amount,sin,accountid,accounttype,payeename) VALUES (%s,%s,%s,%s,%s)",
+                "INSERT INTO PayBills(Amount,SIN,AccountID,AccountType,PayeeName) VALUES(?,?,?,?,?)",
                 (amount, sin, account_id, account_type, payee_name))
-            tbl = "chequing" if account_type == "chequing" else "savings"
-            self.cur.execute(f"UPDATE {tbl} SET balance=balance-%s WHERE accountid=%s", (amount, account_id))
+            tbl = "Chequing" if account_type == "chequing" else "Savings"
+            self.cur.execute(f"UPDATE {tbl} SET Balance=Balance-? WHERE AccountID=?", (amount, account_id))
             self.commit_close(); return "✓ Bill payment recorded."
         except Exception as e:
             self.close(); return f"✗ Error: {e}"
 
     def delete_paybill(self, pbid):
         try:
-            self.cur.execute("DELETE FROM paybills WHERE paybillid=%s", (pbid,))
+            self.cur.execute("DELETE FROM PayBills WHERE PayBillID=?", (pbid,))
             self.commit_close(); return "✓ Pay bill record deleted."
         except Exception as e:
             self.close(); return f"✗ Error: {e}"
@@ -263,23 +447,20 @@ class Database:
     # ── CLOSE ACCOUNT ───────────────────────────────────────
     def get_all_closed(self):
         self.cur.execute("""
-            SELECT ca.closeid AS "CloseID", ca.sin AS "SIN",
-                   ca.accountid AS "AccountID", ca.accounttype AS "AccountType",
-                   ca.closedat AS "ClosedAt",
-                   p.fullname AS "FullName"
-            FROM closeaccount ca
-            INNER JOIN person p ON ca.sin = p.sin
-            ORDER BY ca.closedat DESC
+            SELECT ca.CloseID, ca.SIN, ca.AccountID, ca.AccountType,
+                   ca.ClosedAt, p.FullName
+            FROM CloseAccount ca INNER JOIN Person p ON ca.SIN=p.SIN
+            ORDER BY ca.ClosedAt DESC
         """)
-        r = self.cur.fetchall(); self.close(); return r
+        r = rows(self.cur); self.close(); return r
 
     def close_account(self, sin, account_id, account_type):
         try:
             self.cur.execute(
-                "INSERT INTO closeaccount (sin,accountid,accounttype) VALUES (%s,%s,%s)",
+                "INSERT INTO CloseAccount(SIN,AccountID,AccountType) VALUES(?,?,?)",
                 (sin, account_id, account_type))
-            tbl = "chequing" if account_type == "chequing" else "savings"
-            self.cur.execute(f"DELETE FROM {tbl} WHERE accountid=%s", (account_id,))
+            tbl = "Chequing" if account_type == "chequing" else "Savings"
+            self.cur.execute(f"DELETE FROM {tbl} WHERE AccountID=?", (account_id,))
             self.commit_close(); return "✓ Account closed."
         except Exception as e:
             self.close(); return f"✗ Error: {e}"
@@ -287,32 +468,26 @@ class Database:
     # ── PAYEE ───────────────────────────────────────────────
     def get_all_payees(self):
         self.cur.execute("""
-            SELECT py.payeeid AS "PayeeID", py.sin AS "SIN",
-                   py.accountid AS "AccountID", py.accounttype AS "AccountType",
-                   py.payeename AS "PayeeName", py.payeenumber AS "PayeeNumber",
-                   py.payeeemail AS "PayeeEmail",
-                   p.fullname AS "FullName"
-            FROM payee py
-            INNER JOIN person p ON py.sin = p.sin
-            ORDER BY py.payeename
+            SELECT py.PayeeID, py.SIN, py.AccountID, py.AccountType,
+                   py.PayeeName, py.PayeeNumber, py.PayeeEmail, p.FullName
+            FROM Payee py INNER JOIN Person p ON py.SIN=p.SIN
+            ORDER BY py.PayeeName
         """)
-        r = self.cur.fetchall(); self.close(); return r
+        r = rows(self.cur); self.close(); return r
 
     def get_payee(self, pid):
         self.cur.execute("""
-            SELECT payeeid AS "PayeeID", sin AS "SIN",
-                   accountid AS "AccountID", accounttype AS "AccountType",
-                   payeename AS "PayeeName", payeenumber AS "PayeeNumber",
-                   payeeemail AS "PayeeEmail"
-            FROM payee WHERE payeeid=%s
+            SELECT PayeeID, SIN, AccountID, AccountType,
+                   PayeeName, PayeeNumber, PayeeEmail
+            FROM Payee WHERE PayeeID=?
         """, (pid,))
-        r = self.cur.fetchone(); self.close(); return r
+        r = row(self.cur); self.close(); return r
 
     def insert_payee(self, sin, account_id, account_type, name, number, email):
         try:
             self.cur.execute(
-                """INSERT INTO payee (sin,accountid,accounttype,payeename,payeenumber,payeeemail)
-                   VALUES (%s,%s,%s,%s,%s,%s)""",
+                """INSERT INTO Payee(SIN,AccountID,AccountType,PayeeName,PayeeNumber,PayeeEmail)
+                   VALUES(?,?,?,?,?,?)""",
                 (sin, account_id, account_type, name, number, email))
             self.commit_close(); return "✓ Payee added."
         except Exception as e:
@@ -321,7 +496,7 @@ class Database:
     def update_payee(self, pid, name, number, email):
         try:
             self.cur.execute(
-                "UPDATE payee SET payeename=%s,payeenumber=%s,payeeemail=%s WHERE payeeid=%s",
+                "UPDATE Payee SET PayeeName=?,PayeeNumber=?,PayeeEmail=? WHERE PayeeID=?",
                 (name, number, email, pid))
             self.commit_close(); return "✓ Payee updated."
         except Exception as e:
@@ -329,48 +504,43 @@ class Database:
 
     def delete_payee(self, pid):
         try:
-            self.cur.execute("DELETE FROM payee WHERE payeeid=%s", (pid,))
+            self.cur.execute("DELETE FROM Payee WHERE PayeeID=?", (pid,))
             self.commit_close(); return "✓ Payee deleted."
         except Exception as e:
             self.close(); return f"✗ Error: {e}"
 
     # ── HELPERS ─────────────────────────────────────────────
     def get_persons_list(self):
-        self.cur.execute("""
-            SELECT sin AS "SIN", fullname AS "FullName"
-            FROM person ORDER BY fullname
-        """)
-        r = self.cur.fetchall(); self.close(); return r
+        self.cur.execute("SELECT SIN, FullName FROM Person ORDER BY FullName")
+        r = rows(self.cur); self.close(); return r
 
     def get_all_accounts_flat(self):
         self.cur.execute("""
-            SELECT accountid AS "AccountID", 'chequing' AS "Type", sin AS "SIN" FROM chequing
+            SELECT AccountID, 'chequing' AS Type, SIN FROM Chequing
             UNION
-            SELECT accountid AS "AccountID", 'savings'  AS "Type", sin AS "SIN" FROM savings
+            SELECT AccountID, 'savings'  AS Type, SIN FROM Savings
         """)
-        r = self.cur.fetchall(); self.close(); return r
+        r = rows(self.cur); self.close(); return r
 
-    # ── JOIN DASHBOARD ──────────────────────────────────────
+    # ── DASHBOARD JOIN ──────────────────────────────────────
     def get_join_summary(self):
         self.cur.execute("""
             SELECT
-                p.sin          AS "SIN",
-                p.fullname     AS "FullName",
-                p.phonenumber  AS "PhoneNumber",
-                c.accountid    AS "ChequingID",
-                c.balance      AS "ChequingBal",
-                s.accountid    AS "SavingsID",
-                s.balance      AS "SavingsBal",
-                s.interestrate AS "InterestRate"
-            FROM person p
-            LEFT JOIN chequing c ON p.sin = c.sin
-            LEFT JOIN savings  s ON p.sin = s.sin
-            ORDER BY p.fullname
+                p.SIN, p.FullName, p.PhoneNumber,
+                c.AccountID  AS ChequingID,
+                c.Balance    AS ChequingBal,
+                s.AccountID  AS SavingsID,
+                s.Balance    AS SavingsBal,
+                s.InterestRate
+            FROM Person p
+            LEFT JOIN Chequing c ON p.SIN = c.SIN
+            LEFT JOIN Savings  s ON p.SIN = s.SIN
+            ORDER BY p.FullName
         """)
-        r = self.cur.fetchall(); self.close(); return r
+        r = rows(self.cur); self.close(); return r
 
 
-# ── ROUTES ───────────────────────────────────────────────────
+# ── ROUTES (identical to original) ───────────────────────────
 
 @app.route("/")
 def home():
@@ -382,9 +552,9 @@ def home():
 @app.route("/persons")
 def persons():
     db = Database()
-    persons = db.get_all_persons()
+    p = db.get_all_persons()
     msg = request.args.get("msg", "")
-    return render_template("persons.html", persons=persons, msg=msg)
+    return render_template("persons.html", persons=p, msg=msg)
 
 @app.route("/persons/new", methods=["GET", "POST"])
 def person_new():
@@ -582,9 +752,9 @@ def close_account():
 @app.route("/payees")
 def payees():
     db = Database()
-    payees = db.get_all_payees()
+    p = db.get_all_payees()
     msg = request.args.get("msg", "")
-    return render_template("payees.html", payees=payees, msg=msg)
+    return render_template("payees.html", payees=p, msg=msg)
 
 @app.route("/payees/new", methods=["GET", "POST"])
 def payee_new():
@@ -621,6 +791,9 @@ def payee_delete(pid):
     msg = db.delete_payee(pid)
     return redirect(url_for("payees", msg=msg))
 
+
+# ── Init + run ────────────────────────────────────────────────
+init_db()   # create tables & seed data on every startup (idempotent)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
