@@ -5,7 +5,6 @@ import os
 app = Flask(__name__, template_folder="templates")
 
 
-# ── Database ──────────────────────────────────────────────────
 class Database:
 
     def __init__(self):
@@ -25,7 +24,6 @@ class Database:
         self.con.commit()
         self.con.close()
 
-    # ── PERSON ──────────────────────────────────────────────
     def get_all_persons(self):
         self.cur.execute("SELECT * FROM Person ORDER BY FullName")
         r = self.cur.fetchall()
@@ -44,7 +42,6 @@ class Database:
                 "INSERT INTO Person (SIN,FullName,DateOfBirth,PhoneNumber,Address) VALUES (%s,%s,%s,%s,%s)",
                 (sin, name, dob, phone, address),
             )
-            # Also create Account record (supertype)
             self.cur.execute("INSERT INTO Account (SIN) VALUES (%s)", (sin,))
             self.commit_close()
             return "✓ Person registered successfully."
@@ -73,7 +70,6 @@ class Database:
             self.close()
             return f"✗ Error: {e}"
 
-    # ── CHEQUING ────────────────────────────────────────────
     def get_all_chequing(self):
         self.cur.execute(
             """
@@ -125,7 +121,6 @@ class Database:
             self.close()
             return f"✗ Error: {e}"
 
-    # ── SAVINGS ─────────────────────────────────────────────
     def get_all_savings(self):
         self.cur.execute(
             """
@@ -177,7 +172,6 @@ class Database:
             self.close()
             return f"✗ Error: {e}"
 
-    # ── DEPOSIT ─────────────────────────────────────────────
     def get_all_deposits(self):
         self.cur.execute(
             """
@@ -196,7 +190,6 @@ class Database:
                 "INSERT INTO Deposit (Amount,SIN,AccountID,AccountType) VALUES (%s,%s,%s,%s)",
                 (amount, sin, account_id, account_type),
             )
-            # Update balance
             if account_type == "chequing":
                 self.cur.execute(
                     "UPDATE Chequing SET Balance=Balance+%s WHERE AccountID=%s",
@@ -222,7 +215,6 @@ class Database:
             self.close()
             return f"✗ Error: {e}"
 
-    # ── TRANSFER ────────────────────────────────────────────
     def get_all_transfers(self):
         self.cur.execute(
             """
@@ -242,7 +234,6 @@ class Database:
                    VALUES (%s,%s,%s,%s,%s,%s)""",
                 (amount, sin, from_id, from_type, to_id, to_type),
             )
-            # Debit source
             tbl_from = "Chequing" if from_type == "chequing" else "Savings"
             tbl_to = "Chequing" if to_type == "chequing" else "Savings"
             self.cur.execute(
@@ -268,7 +259,6 @@ class Database:
             self.close()
             return f"✗ Error: {e}"
 
-    # ── PAY BILLS ───────────────────────────────────────────
     def get_all_paybills(self):
         self.cur.execute(
             """
@@ -307,7 +297,6 @@ class Database:
             self.close()
             return f"✗ Error: {e}"
 
-    # ── CLOSE ACCOUNT ───────────────────────────────────────
     def get_all_closed(self):
         self.cur.execute(
             """
@@ -334,7 +323,6 @@ class Database:
             self.close()
             return f"✗ Error: {e}"
 
-    # ── PAYEE ───────────────────────────────────────────────
     def get_all_payees(self):
         self.cur.execute(
             """
@@ -387,7 +375,6 @@ class Database:
             self.close()
             return f"✗ Error: {e}"
 
-    # ── HELPERS ─────────────────────────────────────────────
     def get_persons_list(self):
         self.cur.execute("SELECT SIN, FullName FROM Person ORDER BY FullName")
         r = self.cur.fetchall()
@@ -414,7 +401,6 @@ class Database:
         self.close()
         return r
 
-    # ── JOIN DASHBOARD ──────────────────────────────────────
     def get_join_summary(self):
         """
         JOIN: Person ⋈ Chequing ⋈ Savings (LEFT JOIN to show all persons)
@@ -442,7 +428,6 @@ class Database:
         return r
 
 
-# ── ROUTES ───────────────────────────────────────────────────
 
 
 @app.route("/")
@@ -452,7 +437,6 @@ def home():
     return render_template("index.html", summary=summary)
 
 
-# ─ PERSONS ────────────────────────────────────────────────────
 @app.route("/persons")
 def persons():
     db = Database()
@@ -494,7 +478,6 @@ def person_delete(sin):
     return redirect(url_for("persons", msg=msg))
 
 
-# ─ CHEQUING ───────────────────────────────────────────────────
 @app.route("/chequing")
 def chequing():
     db = Database()
@@ -550,7 +533,6 @@ def chequing_delete(aid):
     return redirect(url_for("chequing", msg=msg))
 
 
-# ─ SAVINGS ────────────────────────────────────────────────────
 @app.route("/savings")
 def savings():
     db = Database()
@@ -606,7 +588,6 @@ def savings_delete(aid):
     return redirect(url_for("savings", msg=msg))
 
 
-# ─ DEPOSIT ────────────────────────────────────────────────────
 @app.route("/deposits", methods=["GET", "POST"])
 def deposits():
     msg = ""
@@ -634,7 +615,6 @@ def deposit_delete(did):
     return redirect(url_for("deposits", msg=msg))
 
 
-# ─ TRANSFER ───────────────────────────────────────────────────
 @app.route("/transfers", methods=["GET", "POST"])
 def transfers():
     msg = ""
@@ -667,7 +647,6 @@ def transfer_delete(tid):
     return redirect(url_for("transfers"))
 
 
-# ─ PAY BILLS ──────────────────────────────────────────────────
 @app.route("/paybills", methods=["GET", "POST"])
 def paybills():
     msg = ""
@@ -695,7 +674,6 @@ def paybill_delete(pbid):
     return redirect(url_for("paybills"))
 
 
-# ─ CLOSE ACCOUNT ──────────────────────────────────────────────
 @app.route("/close", methods=["GET", "POST"])
 def close_account():
     msg = ""
@@ -714,7 +692,6 @@ def close_account():
     )
 
 
-# ─ PAYEES ─────────────────────────────────────────────────────
 @app.route("/payees")
 def payees():
     db = Database()
